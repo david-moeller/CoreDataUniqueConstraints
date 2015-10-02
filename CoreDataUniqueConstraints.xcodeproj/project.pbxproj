@@ -34,6 +34,7 @@
 		92975F841BB3AE210037CDAB /* Person+CoreDataProperties.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "Person+CoreDataProperties.m"; sourceTree = "<group>"; };
 		92975F851BB3AE210037CDAB /* Person.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Person.h; sourceTree = "<group>"; };
 		92975F861BB3AE210037CDAB /* Person.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Person.m; sourceTree = "<group>"; };
+		D3375D621BBF123B00BB4DBC /* CoreDataUniqueConstraints 2.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "CoreDataUniqueConstraints 2.xcdatamodel"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -322,6 +323,7 @@
 				92975F6C1BB3AAE10037CDAB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 
@@ -329,6 +331,7 @@
 		92975F5F1BB3AAE10037CDAB /* CoreDataUniqueConstraints.xcdatamodeld */ = {
 			isa = XCVersionGroup;
 			children = (
+				D3375D621BBF123B00BB4DBC /* CoreDataUniqueConstraints 2.xcdatamodel */,
 				92975F601BB3AAE10037CDAB /* CoreDataUniqueConstraints.xcdatamodel */,
 			);
 			currentVersion = 92975F601BB3AAE10037CDAB /* CoreDataUniqueConstraints.xcdatamodel */;
