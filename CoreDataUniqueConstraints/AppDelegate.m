@@ -11,6 +11,7 @@
 
 @interface AppDelegate ()
 
+@property BOOL migrationRequired;
 
 @end
 
@@ -77,6 +78,18 @@
                     NSInferMappingModelAutomaticallyOption: @YES };
     
 }
+- (NSDictionary *)storeMetadata {
+    
+    NSError *__autoreleasing error;
+    NSDictionary* sourceMetadata = [NSPersistentStoreCoordinator metadataForPersistentStoreOfType:self.storeType
+                                                                                              URL:self.storeURL
+                                                                                          options:self.storeOptions
+                                                                                            error:&error];
+    if (sourceMetadata == nil) {
+        NSLog(@"Source metadata not found, with error: %@", error.localizedDescription);
+    }
+    return sourceMetadata;
+}
 - (NSManagedObjectModel *)managedObjectModel {
     // The managed object model for the application. It is a fatal error for the application not to be able to find and load its model.
     if (_managedObjectModel != nil) {
@@ -89,7 +102,8 @@
 
 - (NSPersistentStoreCoordinator *)persistentStoreCoordinator {
     // The persistent store coordinator for the application. This implementation creates and returns a coordinator, having added the store for the application to it.
-    if (_persistentStoreCoordinator != nil) {
+    if (_persistentStoreCoordinator != nil &&
+        [_persistentStoreCoordinator.managedObjectModel isEqual:self.managedObjectModel]) {
         return _persistentStoreCoordinator;
     }
     
@@ -97,22 +111,42 @@
     
     _persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:[self managedObjectModel]];
     NSError *error = nil;
-    NSString *failureReason = @"There was an error creating or loading the application's saved data.";
-    if (![_persistentStoreCoordinator addPersistentStoreWithType:[self storeType]
-                                                   configuration:[self storeConfiguration]
-                                                             URL:[self storeURL]
-                                                         options:[self storeOptions]
+    if (![_persistentStoreCoordinator addPersistentStoreWithType:self.storeType
+                                                   configuration:self.storeConfiguration
+                                                             URL:self.storeURL
+                                                         options:self.storeOptions
                                                            error:&error]) {
-        // Report any error we got.
-        NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-        dict[NSLocalizedDescriptionKey] = @"Failed to initialize the application's saved data";
-        dict[NSLocalizedFailureReasonErrorKey] = failureReason;
-        dict[NSUnderlyingErrorKey] = error;
-        error = [NSError errorWithDomain:@"YOUR_ERROR_DOMAIN" code:9999 userInfo:dict];
-        // Replace this with code to handle the error appropriately.
-        // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-        NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
-        abort();
+        NSLog(@"Failed to add persistent store with error: %@", error.localizedDescription);
+        NSLog(@"Falling back on existing metadata object model");
+        NSDictionary* sourceMetadata = self.storeMetadata;
+        if (![self.managedObjectModel isConfiguration:self.storeConfiguration
+                          compatibleWithStoreMetadata:sourceMetadata]) { // getting false positives here. Because the existing metadata is never compatible with the model?
+            NSLog(@"Setting migration is required.");
+            // Migration or data sanitization is required.
+            self.migrationRequired = YES;
+            // Fall back on managed object model for existing data.
+            NSManagedObjectModel* sourceModel =[NSManagedObjectModel mergedModelFromBundles:@[[NSBundle mainBundle]]
+                                                                   forStoreMetadata:sourceMetadata];
+            _persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:sourceModel];
+        }
+        NSError *fallbackError = nil;
+        if (![_persistentStoreCoordinator addPersistentStoreWithType:self.storeType
+                                                       configuration:self.storeConfiguration
+                                                                 URL:self.storeURL
+                                                             options:self.storeOptions
+                                                               error:&fallbackError]) {
+        
+            // Report any error we got.
+            NSMutableDictionary *dict = [NSMutableDictionary dictionary];
+            dict[NSLocalizedDescriptionKey] = @"Failed to initialize the application's saved data";
+            dict[NSLocalizedFailureReasonErrorKey] = @"There was an error creating or loading the application's saved data.";
+            dict[NSUnderlyingErrorKey] = fallbackError;
+            error = [NSError errorWithDomain:@"YOUR_ERROR_DOMAIN" code:9999 userInfo:dict];
+            // Replace this with code to handle the error appropriately.
+            // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
+            NSLog(@"Unresolved error %@, %@", fallbackError, [fallbackError userInfo]);
+            abort();
+        }
     }
     
     return _persistentStoreCoordinator;

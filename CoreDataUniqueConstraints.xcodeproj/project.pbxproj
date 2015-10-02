@@ -334,7 +334,7 @@
 				D3375D621BBF123B00BB4DBC /* CoreDataUniqueConstraints 2.xcdatamodel */,
 				92975F601BB3AAE10037CDAB /* CoreDataUniqueConstraints.xcdatamodel */,
 			);
-			currentVersion = 92975F601BB3AAE10037CDAB /* CoreDataUniqueConstraints.xcdatamodel */;
+			currentVersion = D3375D621BBF123B00BB4DBC /* CoreDataUniqueConstraints 2.xcdatamodel */;
 			path = CoreDataUniqueConstraints.xcdatamodeld;
 			sourceTree = "<group>";
 			versionGroupType = wrapper.xcdatamodel;
