@@ -11,6 +11,7 @@
 
 @interface AppDelegate ()
 
+
 @end
 
 @implementation AppDelegate
@@ -59,14 +60,30 @@
     // The directory the application uses to store the Core Data store file. This code uses a directory named "com.zor.CoreDataUniqueConstraints" in the application's documents directory.
     return [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
 }
-
+- (NSURL *)modelURL {
+    return [[NSBundle mainBundle] URLForResource:@"CoreDataUniqueConstraints" withExtension:@"momd"];
+}
+- (NSString *)storeType {
+    return NSSQLiteStoreType;
+}
+- (NSString *)storeConfiguration {
+    return nil;
+}
+- (NSURL *)storeURL {
+    return [[self applicationDocumentsDirectory] URLByAppendingPathComponent:@"CoreDataUniqueConstraints.sqlite"];
+}
+- (NSDictionary *)storeOptions {
+    return @{ NSMigratePersistentStoresAutomaticallyOption: @YES,
+                    NSInferMappingModelAutomaticallyOption: @YES };
+    
+}
 - (NSManagedObjectModel *)managedObjectModel {
     // The managed object model for the application. It is a fatal error for the application not to be able to find and load its model.
     if (_managedObjectModel != nil) {
         return _managedObjectModel;
     }
-    NSURL *modelURL = [[NSBundle mainBundle] URLForResource:@"CoreDataUniqueConstraints" withExtension:@"momd"];
-    _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+    _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:self.modelURL];
+    
     return _managedObjectModel;
 }
 
@@ -79,10 +96,13 @@
     // Create the coordinator and store
     
     _persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:[self managedObjectModel]];
-    NSURL *storeURL = [[self applicationDocumentsDirectory] URLByAppendingPathComponent:@"CoreDataUniqueConstraints.sqlite"];
     NSError *error = nil;
     NSString *failureReason = @"There was an error creating or loading the application's saved data.";
-    if (![_persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:storeURL options:nil error:&error]) {
+    if (![_persistentStoreCoordinator addPersistentStoreWithType:[self storeType]
+                                                   configuration:[self storeConfiguration]
+                                                             URL:[self storeURL]
+                                                         options:[self storeOptions]
+                                                           error:&error]) {
         // Report any error we got.
         NSMutableDictionary *dict = [NSMutableDictionary dictionary];
         dict[NSLocalizedDescriptionKey] = @"Failed to initialize the application's saved data";
