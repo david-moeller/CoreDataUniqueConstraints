@@ -81,9 +81,9 @@
 - (NSDictionary *)storeMetadata {
     
     NSError *__autoreleasing error;
-    NSDictionary* sourceMetadata = [NSPersistentStoreCoordinator metadataForPersistentStoreOfType:self.storeType
-                                                                                              URL:self.storeURL
-                                                                                          options:self.storeOptions
+    NSDictionary* sourceMetadata = [NSPersistentStoreCoordinator metadataForPersistentStoreOfType:[self storeType]
+                                                                                              URL:[self storeURL]
+                                                                                          options:[self storeOptions]
                                                                                             error:&error];
     if (sourceMetadata == nil) {
         NSLog(@"Source metadata not found, with error: %@", error.localizedDescription);
@@ -95,7 +95,7 @@
     if (_managedObjectModel != nil) {
         return _managedObjectModel;
     }
-    _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:self.modelURL];
+    _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:[self modelURL]];
     
     return _managedObjectModel;
 }
@@ -103,37 +103,42 @@
 - (NSPersistentStoreCoordinator *)persistentStoreCoordinator {
     // The persistent store coordinator for the application. This implementation creates and returns a coordinator, having added the store for the application to it.
     if (_persistentStoreCoordinator != nil &&
-        [_persistentStoreCoordinator.managedObjectModel isEqual:self.managedObjectModel]) {
+        [_persistentStoreCoordinator.managedObjectModel isEqual:[self managedObjectModel]]) {
         return _persistentStoreCoordinator;
     }
     
     // Create the coordinator and store
+    NSLog(@"Creating new persistent store coordinator");
     
     _persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:[self managedObjectModel]];
     NSError *error = nil;
-    if (![_persistentStoreCoordinator addPersistentStoreWithType:self.storeType
-                                                   configuration:self.storeConfiguration
-                                                             URL:self.storeURL
-                                                         options:self.storeOptions
+    if (![_persistentStoreCoordinator addPersistentStoreWithType:[self storeType]
+                                                   configuration:[self storeConfiguration]
+                                                             URL:[self storeURL]
+                                                         options:[self storeOptions]
                                                            error:&error]) {
         NSLog(@"Failed to add persistent store with error: %@", error.localizedDescription);
-        NSLog(@"Falling back on existing metadata object model");
         NSDictionary* sourceMetadata = self.storeMetadata;
-        if (![self.managedObjectModel isConfiguration:self.storeConfiguration
-                          compatibleWithStoreMetadata:sourceMetadata]) { // getting false positives here. Because the existing metadata is never compatible with the model?
+        if (![[self managedObjectModel] isConfiguration:[self storeConfiguration]
+                          compatibleWithStoreMetadata:sourceMetadata]) {
             NSLog(@"Setting migration is required.");
             // Migration or data sanitization is required.
             self.migrationRequired = YES;
             // Fall back on managed object model for existing data.
+            NSLog(@"Falling back on existing metadata object model");
             NSManagedObjectModel* sourceModel =[NSManagedObjectModel mergedModelFromBundles:@[[NSBundle mainBundle]]
-                                                                   forStoreMetadata:sourceMetadata];
+                                                                           forStoreMetadata:sourceMetadata];
             _persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:sourceModel];
+        } else {
+            self.migrationRequired = NO;
         }
+        
+        NSLog(@"Re-attempt setup persistent store coordinator");
         NSError *fallbackError = nil;
-        if (![_persistentStoreCoordinator addPersistentStoreWithType:self.storeType
-                                                       configuration:self.storeConfiguration
-                                                                 URL:self.storeURL
-                                                             options:self.storeOptions
+        if (![_persistentStoreCoordinator addPersistentStoreWithType:[self storeType]
+                                                       configuration:[self storeConfiguration]
+                                                                 URL:[self storeURL]
+                                                             options:[self storeOptions]
                                                                error:&fallbackError]) {
         
             // Report any error we got.
@@ -147,19 +152,63 @@
             NSLog(@"Unresolved error %@, %@", fallbackError, [fallbackError userInfo]);
             abort();
         }
+    } else {
+        self.migrationRequired = NO;
     }
     
     return _persistentStoreCoordinator;
 }
 
+- (NSFetchRequest *)requestForDuplicateObjectsInContext:(NSManagedObjectContext* __nonnull) moc {
+    NSFetchRequest* objectsToKeepRequest = [NSFetchRequest fetchRequestWithEntityName:@"Person"];
+    NSExpressionDescription* ed = [[NSExpressionDescription alloc]init];
+    ed.expression = [NSExpression expressionForEvaluatedObject];
+    ed.name = @"SELF";
+    ed.expressionResultType = NSObjectIDAttributeType;
+    objectsToKeepRequest.propertiesToFetch = @[ed];
+    
+    objectsToKeepRequest.propertiesToGroupBy = @[@"name"];
+    objectsToKeepRequest.resultType = NSDictionaryResultType;
+    NSExpression* otkExpression = [NSExpression expressionForConstantValue:objectsToKeepRequest];
+    NSExpression* mocExpression = [NSExpression expressionForConstantValue:moc];
+    NSFetchRequest* duplicateObjectRequest = [NSFetchRequest fetchRequestWithEntityName:@"Person"];
+    NSFetchRequestExpression* fre = (NSFetchRequestExpression*)[NSFetchRequestExpression expressionForFetch:otkExpression
+                                                                         context:mocExpression
+                                                                       countOnly:NO];
+    duplicateObjectRequest.predicate = [NSPredicate predicateWithFormat:@"NOT SELF IN %@", fre];
+    return duplicateObjectRequest;
+}
 
 - (NSManagedObjectContext *)managedObjectContext {
     // Returns the managed object context for the application (which is already bound to the persistent store coordinator for the application.)
     if (_managedObjectContext != nil) {
         return _managedObjectContext;
     }
-    
     NSPersistentStoreCoordinator *coordinator = [self persistentStoreCoordinator];
+    if (!coordinator) {
+        return nil;
+    }
+    
+    if (self.migrationRequired) {
+        NSManagedObjectContext* moc = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
+        [moc setPersistentStoreCoordinator:coordinator];
+        [moc setMergePolicy:NSMergeByPropertyObjectTrumpMergePolicy];
+        [moc performBlockAndWait:^{
+            NSBatchDeleteRequest* duplicateDeleteRequest = [[NSBatchDeleteRequest alloc] initWithFetchRequest:[self requestForDuplicateObjectsInContext:moc]];
+            duplicateDeleteRequest.resultType = NSCountResultType;
+            NSError*__autoreleasing error = nil;
+            NSBatchDeleteResult* resultBox = [moc executeRequest:duplicateDeleteRequest error:&error];
+            if (resultBox == nil) {
+                NSLog(@"encountered error: %@", error);
+                abort();
+            }
+            NSInteger deletedObjectCount = [resultBox.result integerValue];
+            NSLog(@"Removed %ld duplicate objects", (long)deletedObjectCount);
+            self.migrationRequired = NO;
+        }];
+    }
+    
+    coordinator = [self persistentStoreCoordinator];
     if (!coordinator) {
         return nil;
     }
@@ -172,7 +221,7 @@
 #pragma mark - Core Data Saving support
 
 - (void)saveContext {
-    NSManagedObjectContext *managedObjectContext = self.managedObjectContext;
+    NSManagedObjectContext *managedObjectContext = [self managedObjectContext];
     if (managedObjectContext != nil) {
         NSError *error = nil;
         if ([managedObjectContext hasChanges] && ![managedObjectContext save:&error]) {
