@@ -80,7 +80,7 @@
 }
 - (NSDictionary *)storeMetadata {
     
-    NSError *__autoreleasing error;
+    NSError *__autoreleasing error = nil;
     NSDictionary* sourceMetadata = [NSPersistentStoreCoordinator metadataForPersistentStoreOfType:[self storeType]
                                                                                               URL:[self storeURL]
                                                                                           options:[self storeOptions]
@@ -111,7 +111,7 @@
     NSLog(@"Creating new persistent store coordinator");
     
     _persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:[self managedObjectModel]];
-    NSError *error = nil;
+    NSError *__autoreleasing error = nil;
     if (![_persistentStoreCoordinator addPersistentStoreWithType:[self storeType]
                                                    configuration:[self storeConfiguration]
                                                              URL:[self storeURL]
@@ -134,7 +134,7 @@
         }
         
         NSLog(@"Re-attempt setup persistent store coordinator");
-        NSError *fallbackError = nil;
+        NSError *__autoreleasing fallbackError = nil;
         if (![_persistentStoreCoordinator addPersistentStoreWithType:[self storeType]
                                                        configuration:[self storeConfiguration]
                                                                  URL:[self storeURL]
@@ -160,6 +160,7 @@
 }
 
 - (NSFetchRequest *)requestForDuplicateObjectsInContext:(NSManagedObjectContext* __nonnull) moc {
+    // Break this up!
     NSFetchRequest* objectsToKeepRequest = [NSFetchRequest fetchRequestWithEntityName:@"Person"];
     NSExpressionDescription* ed = [[NSExpressionDescription alloc]init];
     ed.expression = [NSExpression expressionForEvaluatedObject];
@@ -195,7 +196,7 @@
         [moc setMergePolicy:NSMergeByPropertyObjectTrumpMergePolicy];
         [moc performBlockAndWait:^{
             NSBatchDeleteRequest* duplicateDeleteRequest = [[NSBatchDeleteRequest alloc] initWithFetchRequest:[self requestForDuplicateObjectsInContext:moc]];
-            duplicateDeleteRequest.resultType = NSCountResultType;
+            duplicateDeleteRequest.resultType = NSBatchDeleteResultTypeCount;
             NSError*__autoreleasing error = nil;
             NSBatchDeleteResult* resultBox = [moc executeRequest:duplicateDeleteRequest error:&error];
             if (resultBox == nil) {
@@ -223,7 +224,7 @@
 - (void)saveContext {
     NSManagedObjectContext *managedObjectContext = [self managedObjectContext];
     if (managedObjectContext != nil) {
-        NSError *error = nil;
+        NSError *__autoreleasing error = nil;
         if ([managedObjectContext hasChanges] && ![managedObjectContext save:&error]) {
             // Replace this implementation with code to handle the error appropriately.
             // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
